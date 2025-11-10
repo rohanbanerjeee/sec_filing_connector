@@ -9,6 +9,84 @@ Build a Python module that fetches and filters SEC EDGAR filings. This is a **2-
 - Filing list with filters (form type, date range)
 - Basic download capability
 
+---
+
+## Installation
+
+Install the package in editable mode:
+
+```bash
+pip install -e .
+```
+
+This will install the package and its dependencies (`httpx`, `pydantic`, `pytest`).
+
+---
+
+## Running Tests
+
+Run all tests with pytest:
+
+```bash
+pytest
+```
+
+For verbose output:
+
+```bash
+pytest -v
+```
+
+---
+
+## CLI Usage
+
+The command-line interface allows you to look up companies and filter their SEC filings.
+
+### Basic Usage
+
+```bash
+python -m sec_connector.cli AAPL
+```
+
+### Filter by Form Type
+
+```bash
+python -m sec_connector.cli AAPL --form 10-K --limit 5
+```
+
+### Filter by Date Range
+
+```bash
+python -m sec_connector.cli AAPL --date-from 2023-01-01 --date-to 2023-12-31
+```
+
+### Multiple Form Types
+
+```bash
+python -m sec_connector.cli AAPL --form 10-K --form 10-Q
+```
+
+### JSON Output
+
+```bash
+python -m sec_connector.cli AAPL --form 10-K --json
+```
+
+### Complete Example
+
+```bash
+python -m sec_connector.cli MSFT --form 10-K --date-from 2023-01-01 --limit 3 --json
+```
+
+### CLI Options
+
+- `ticker` (required): Stock ticker symbol (e.g., AAPL, MSFT, GOOGL)
+- `--form`: Filter by form type (can be specified multiple times)
+- `--date-from`: Filter filings from this date (YYYY-MM-DD)
+- `--date-to`: Filter filings to this date (YYYY-MM-DD)
+- `--limit`: Maximum number of results (default: 10)
+- `--json`: Output results as JSON instead of table
 
 ---
 

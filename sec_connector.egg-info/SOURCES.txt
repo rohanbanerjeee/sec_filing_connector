@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+sec_connector/__init__.py
+sec_connector/cli.py
+sec_connector/client.py
+sec_connector/models.py
+sec_connector.egg-info/PKG-INFO
+sec_connector.egg-info/SOURCES.txt
+sec_connector.egg-info/dependency_links.txt
+sec_connector.egg-info/requires.txt
+sec_connector.egg-info/top_level.txt
+tests/test_client.py
