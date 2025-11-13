@@ -98,6 +98,18 @@ def main() -> None:
         action="store_true",
         help="Output results as JSON"
     )
+    parser.add_argument(
+        "--download",
+        type=str,
+        metavar="DIR",
+        help="Download filings to the specified directory"
+    )
+    parser.add_argument(
+        "--download-index",
+        type=int,
+        metavar="N",
+        help="Download only the Nth filing (0-indexed, default: download all)"
+    )
 
     args = parser.parse_args()
 
@@ -148,6 +160,42 @@ def main() -> None:
 
     # Get filings
     filings = client.list_filings(company.cik, filters)
+
+    # Download filings if requested
+    if args.download:
+        output_dir = Path(args.download)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        filings_to_download = filings
+        if args.download_index is not None:
+            if args.download_index < 0 or args.download_index >= len(filings):
+                print(f"Error: Invalid download index {args.download_index}. Must be between 0 and {len(filings) - 1}", file=sys.stderr)
+                sys.exit(1)
+            filings_to_download = [filings[args.download_index]]
+
+        downloaded_files = []
+        for filing in filings_to_download:
+            try:
+                file_path = client.download_filing(filing, output_dir=output_dir)
+                downloaded_files.append(file_path)
+                if not args.json:
+                    print(f"Downloaded: {file_path}", file=sys.stderr)
+            except Exception as e:
+                print(f"Error downloading {filing.accession_number}: {e}", file=sys.stderr)
+                if args.json:
+                    sys.exit(1)
+
+        if args.json:
+            output = {
+                "company": {
+                    "ticker": company.ticker,
+                    "cik": company.cik,
+                    "name": company.name
+                },
+                "downloaded_files": [str(f) for f in downloaded_files]
+            }
+            print(json.dumps(output, indent=2))
+            return
 
     # Output results
     if args.json:

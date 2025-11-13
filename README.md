@@ -79,6 +79,20 @@ python -m sec_connector.cli AAPL --form 10-K --json
 python -m sec_connector.cli MSFT --form 10-K --date-from 2023-01-01 --limit 3 --json
 ```
 
+### Download Filings
+
+Download filings to a directory:
+
+```bash
+python -m sec_connector.cli AAPL --form 10-K --download ./downloads
+```
+
+Download a specific filing by index (0-indexed):
+
+```bash
+python -m sec_connector.cli AAPL --form 10-K --download ./downloads --download-index 0
+```
+
 ### CLI Options
 
 - `ticker` (required): Stock ticker symbol (e.g., AAPL, MSFT, GOOGL)
@@ -87,6 +101,8 @@ python -m sec_connector.cli MSFT --form 10-K --date-from 2023-01-01 --limit 3 --
 - `--date-to`: Filter filings to this date (YYYY-MM-DD)
 - `--limit`: Maximum number of results (default: 10)
 - `--json`: Output results as JSON instead of table
+- `--download DIR`: Download filings to the specified directory
+- `--download-index N`: Download only the Nth filing (0-indexed, default: download all)
 
 ---
 

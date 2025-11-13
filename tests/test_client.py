@@ -3,7 +3,9 @@
 import json
 from datetime import date
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+import httpx
 import pytest
 
 from sec_connector.client import SECClient
@@ -217,4 +219,129 @@ class TestListFilings:
         # Should only return Microsoft filings
         assert len(msft_filings) == 2
         assert all("Microsoft" in f.company_name for f in msft_filings)
+
+
+class TestDownloadFiling:
+    """Test SECClient.download_filing() method."""
+
+    def test_download_filing_success(self, client, tmp_path):
+        """Test successful filing download."""
+        filing = Filing(
+            cik="320193",
+            company_name="Apple Inc.",
+            form_type="10-K",
+            filing_date=date(2023, 11, 3),
+            accession_number="0000320193-23-000077"
+        )
+
+        # Mock HTTP response
+        mock_response = Mock()
+        mock_response.content = b"Mock filing content"
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+
+        with patch("httpx.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client.__enter__ = Mock(return_value=mock_client)
+            mock_client.__exit__ = Mock(return_value=False)
+            mock_client.get = Mock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            output_path = client.download_filing(filing, output_dir=tmp_path)
+
+            assert output_path.exists()
+            assert output_path.read_bytes() == b"Mock filing content"
+            assert output_path.name == "0000320193-23-000077.txt"
+
+    def test_download_filing_custom_filename(self, client, tmp_path):
+        """Test download with custom filename."""
+        filing = Filing(
+            cik="320193",
+            company_name="Apple Inc.",
+            form_type="10-K",
+            filing_date=date(2023, 11, 3),
+            accession_number="0000320193-23-000077"
+        )
+
+        mock_response = Mock()
+        mock_response.content = b"Mock content"
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+
+        with patch("httpx.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client.__enter__ = Mock(return_value=mock_client)
+            mock_client.__exit__ = Mock(return_value=False)
+            mock_client.get = Mock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            output_path = client.download_filing(filing, output_dir=tmp_path, filename="custom.txt")
+
+            assert output_path.name == "custom.txt"
+            assert output_path.exists()
+
+    def test_download_filing_http_error(self, client, tmp_path):
+        """Test download with HTTP error."""
+        filing = Filing(
+            cik="320193",
+            company_name="Apple Inc.",
+            form_type="10-K",
+            filing_date=date(2023, 11, 3),
+            accession_number="0000320193-23-000077"
+        )
+
+        # Mock HTTP error
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.raise_for_status = Mock(side_effect=httpx.HTTPStatusError(
+            "Not Found", request=Mock(), response=mock_response
+        ))
+
+        with patch("httpx.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client.__enter__ = Mock(return_value=mock_client)
+            mock_client.__exit__ = Mock(return_value=False)
+            mock_client.get = Mock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            # Should try .htm fallback, then raise ValueError
+            mock_response_htm = Mock()
+            mock_response_htm.status_code = 404
+            mock_response_htm.raise_for_status = Mock(side_effect=httpx.HTTPStatusError(
+                "Not Found", request=Mock(), response=mock_response_htm
+            ))
+            mock_client.get = Mock(side_effect=[mock_response, mock_response_htm])
+
+            with pytest.raises(ValueError, match="Failed to download"):
+                client.download_filing(filing, output_dir=tmp_path)
+
+    def test_download_filing_creates_directory(self, client, tmp_path):
+        """Test that download creates output directory if it doesn't exist."""
+        filing = Filing(
+            cik="320193",
+            company_name="Apple Inc.",
+            form_type="10-K",
+            filing_date=date(2023, 11, 3),
+            accession_number="0000320193-23-000077"
+        )
+
+        output_dir = tmp_path / "new_dir" / "subdir"
+        assert not output_dir.exists()
+
+        mock_response = Mock()
+        mock_response.content = b"Content"
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+
+        with patch("httpx.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client.__enter__ = Mock(return_value=mock_client)
+            mock_client.__exit__ = Mock(return_value=False)
+            mock_client.get = Mock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            output_path = client.download_filing(filing, output_dir=output_dir)
+
+            assert output_dir.exists()
+            assert output_path.exists()
 

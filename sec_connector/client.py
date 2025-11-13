@@ -1,5 +1,8 @@
 """Core SEC client logic for company lookup and filing filtering."""
 
+import httpx
+from pathlib import Path
+
 from sec_connector.models import Company, Filing, FilingFilter
 
 
@@ -109,4 +112,77 @@ class SECClient:
 
         # Apply limit
         return filings[:filters.limit]
+
+    def download_filing(self, filing: Filing, output_dir: Path | str | None = None, filename: str | None = None) -> Path:
+        """
+        Download a filing document from SEC EDGAR.
+
+        Args:
+            filing: Filing object to download
+            output_dir: Directory to save the file (default: current directory)
+            filename: Custom filename (default: {accession_number}.txt)
+
+        Returns:
+            Path to the downloaded file
+
+        Raises:
+            httpx.HTTPError: If the download fails
+            ValueError: If the filing data is invalid
+        """
+        # Normalize CIK - remove leading zeros for URL (SEC uses numeric CIK in path)
+        cik_normalized = filing.cik.zfill(10).lstrip("0") or "0"
+
+        # Convert accession number format: "0000320193-23-000077" -> "000032019323000077"
+        accession_no_dashes = filing.accession_number.replace("-", "")
+
+        # Construct SEC EDGAR URL
+        # Format: https://www.sec.gov/Archives/edgar/data/{CIK}/{accession_no}/{filename}
+        base_url = f"https://www.sec.gov/Archives/edgar/data/{cik_normalized}/{accession_no_dashes}"
+
+        # Default filename is the accession number with .txt extension
+        if filename is None:
+            filename = f"{filing.accession_number}.txt"
+
+        # Determine output directory
+        if output_dir is None:
+            output_path = Path(filename)
+        else:
+            output_path = Path(output_dir) / filename
+
+        # Create output directory if it doesn't exist
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Download the file
+        # SEC requires a User-Agent header
+        headers = {
+            "User-Agent": "sec-connector/0.1.0 (contact@example.com)",
+            "Accept-Encoding": "gzip, deflate",
+            "Host": "www.sec.gov"
+        }
+
+        try:
+            with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+                response = client.get(f"{base_url}/{filename}", headers=headers)
+                response.raise_for_status()
+
+                # Write file
+                output_path.write_bytes(response.content)
+
+                return output_path
+        except httpx.HTTPStatusError as e:
+            # Try alternative filename if .txt fails
+            if filename.endswith(".txt"):
+                alt_filename = filename.replace(".txt", ".htm")
+                try:
+                    with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+                        response = client.get(f"{base_url}/{alt_filename}", headers=headers)
+                        response.raise_for_status()
+                        output_path = output_path.with_suffix(".htm")
+                        output_path.write_bytes(response.content)
+                        return output_path
+                except httpx.HTTPStatusError:
+                    pass
+            raise ValueError(f"Failed to download filing: HTTP {e.response.status_code}") from e
+        except httpx.RequestError as e:
+            raise ValueError(f"Failed to download filing: {e}") from e
 
